@@ -26,7 +26,6 @@ class ChatRoomSerializer(serializers.ModelSerializer):
     other_side_age = serializers.IntegerField(default=None)
     other_side_career = serializers.CharField(default='')
     other_side_user = UserSerializer(read_only=True, many=False)
-    current_user = UserSerializer(read_only=True, many=False)
 
     class Meta:
         model = ChatRoom
@@ -38,7 +37,6 @@ class MessageSerializer(serializers.ModelSerializer):
     other_side_image_url = serializers.CharField(default='')
     other_side_phone = serializers.CharField(default='')
     should_show_time = serializers.BooleanField(read_only=True,default=True)
-    # current_user = UserSerializer(read_only=True, many=False)
 
     class Meta:
         model = ChatroomMessage

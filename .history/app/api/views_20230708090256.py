@@ -88,7 +88,6 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             queryset[i].other_side_age = other_side_user.age
             queryset[i].other_side_career = other_side_user.career
             queryset[i].other_side_user = other_side_user
-            queryset[i].current_user = user
 
             if ChatroomMessage.objects.filter(chatroom=queryset[i]).count() > 0:
                 last_message = ChatroomMessage.objects.filter(chatroom=queryset[i]).order_by('-id').first()
@@ -106,7 +105,6 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         chatroom = self.get_object()
         other_side_user = ChatroomUserShip.objects.filter(Q(chatroom=chatroom)&~Q(user=user)).first().user
         chatroom.other_side_user = other_side_user
-        chatroom.current_user = user
         chatroom.other_side_age = other_side_user.age
         if ChatroomMessage.objects.filter(chatroom=chatroom).count() > 0:
             chatroom.last_message_time = chatroom.last_update_at
@@ -142,7 +140,6 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             chatroomuserShip.save()
 
             chatroom.other_side_user = other_side_user
-            chatroom.current_user = user
             serializer = serializers.ChatRoomSerializer(chatroom)
             response_data = serializer.data
             response_data['other_side_image_url'] = other_side_user.imageUrl
@@ -152,12 +149,57 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         else:
             chatroom = ChatRoom.objects.filter(id__in=common_chatroom_ids).first()
             chatroom.other_side_user = other_side_user
-            chatroom.current_user = user
             serializer = serializers.ChatRoomSerializer(chatroom)
             response_data = serializer.data
 
             return Response(response_data)
 
+# class getChatRoomViewSet(APIView):
+
+#     authentication_classes = (TokenAuthentication,)
+#     permission_classes = (IsAuthenticated,)
+
+#     def get(self,request):
+#         user = self.request.user
+#         chatroom_id = self.request.query_params.get('chatroom_id')
+#         chatroom = ChatRoom.objects.get(id=chatroom_id)
+#         other_side_user = ChatroomUserShip.objects.filter(Q(chatroom=chatroom)&~Q(user=user)).first().user
+#         chatroom.other_side_user = other_side_user
+#         chatroom.other_side_age = other_side_user.age
+#         serializer = serializers.ChatRoomSerializer(chatroom)
+
+#         return Response(serializer.data)
+
+#     def post(self,request):
+#         current_user = self.request.user
+#         user_phone = self.request.data.get('user_phone')
+
+
+#         other_side_user = User.objects.get(phone=user_phone)
+#         chatroom_set1 = set(ChatroomUserShip.objects.filter(user=current_user).values_list('chatroom'))
+#         chatroom_set2 = set(ChatroomUserShip.objects.filter(user=other_side_user).values_list('chatroom'))
+
+#         chatroom_set = chatroom_set1.intersection(chatroom_set2)
+
+#         if not list(chatroom_set):
+#             chatroom = ChatRoom()
+#             chatroom.save()
+
+#             chatroomuserShip = ChatroomUserShip()
+#             chatroomuserShip.chatroom = chatroom
+#             chatroomuserShip.user = current_user
+#             chatroomuserShip.save()
+
+#             chatroomuserShip = ChatroomUserShip()
+#             chatroomuserShip.chatroom = chatroom
+#             chatroomuserShip.user = other_side_user
+#             chatroomuserShip.save()
+#         else:
+#             chatroom = ChatRoom.objects.get(id=list(chatroom_set)[0][0])
+
+#         chatroom.other_side_user = other_side_user
+#         serializer = serializers.ChatRoomSerializer(chatroom)
+#         return Response(serializer.data)
 
 class MessageViewSet(APIView):
     # queryset = Message.objects.all()
@@ -172,24 +214,27 @@ class MessageViewSet(APIView):
         user_ids = list(ChatroomUserShip.objects.filter(chatroom=chatroom).values_list('user', flat=True))
 
         if user.id in user_ids:
-            queryset = ChatroomMessage.objects.filter(chatroom=chatroom).order_by('create_at')
+            queryset = ChatroomMessage.objects.filter(chatroom=chatroom).order_by('-create_at')
             print(queryset[0])
-            # print('a')
+            print('a')
             #update is_read_by_other_side
             queryset.filter(~Q(user=user)).update(is_read_by_other_side=True)
-            # print('b')
+            print('b')
             for i in range(len(queryset)):
                 if queryset[i].user == user:
 
                     queryset[i].message_is_mine = True
 
                 other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i].chatroom).filter(~Q(user=self.request.user)).first().user
-                # print('other_side_user',other_side_user)
+                print('other_side_user',other_side_user)
                 queryset[i].other_side_image_url = other_side_user.imageUrl
                 queryset[i].other_side_phone = other_side_user.phone
                 queryset[i].should_show_time = queryset[i].should_show_sendTime
 
-
+                # if queryset[i].case != None:
+                #     queryset[i].orders = Order.objects.filter(case=queryset[i].case)
+                # if queryset[i].case != None and queryset[i].is_this_message_only_case:
+                #     queryset[i].case_detail = queryset[i].case
 
             serializer = serializers.MessageSerializer(queryset, many=True)
 
@@ -235,29 +280,9 @@ class MessageViewSet(APIView):
             chatroom.update_at = datetime.datetime.now()
             chatroom.save()
 
-            messages = ChatroomMessage.objects.filter(chatroom=chatroom).order_by('create_at')
+            message.should_show_time = message.should_show_sendTime
 
-            for i in range(len(messages)):
-
-                messages[i].should_show_time = messages[i].should_show_sendTime
-                messages[i].other_side_image_url = other_side_user.imageUrl
-                messages[i].other_side_phone = other_side_user.phone
-                if messages[i].user == user:
-                    messages[i].message_is_mine = True
-
-            
-            serializer = serializers.MessageSerializer(messages, many=True)
-            # print('chatroom_name: ' + str(serializer.data[-1]['chatroom']))
-            room_group_name = f"chat_{str(serializer.data[-1]['chatroom'])}"
-            async_to_sync(channel_layer.group_send)(
-                room_group_name,
-                {
-                    'type': 'chat_message',
-                    'messages': serializer.data,
-    
-
-                }
-            )
+            serializer = serializers.MessageSerializer(message)
             return Response(serializer.data)
         else:
             return Response({'message': "have no authority"})

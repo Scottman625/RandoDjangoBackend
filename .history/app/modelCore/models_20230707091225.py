@@ -66,8 +66,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     career = models.CharField(max_length=10, blank=True,null=True)
 
-    about_me = models.TextField(blank=True,null=True)
-
     MALE = 'M'
     FEMALE = 'F'
     GENDER_CHOICES = [
@@ -145,10 +143,6 @@ class Match(models.Model):
 
 class ChatRoom(models.Model):
     update_at = models.DateTimeField(auto_now=True, blank = True, null=True) 
-
-    def last_update_at(self):
-        last_message = ChatroomMessage.objects.filter(chatroom=self).order_by('create_at').first()
-        return last_message.create_at
 
 class ChatroomUserShip(models.Model):
     user = models.ForeignKey(

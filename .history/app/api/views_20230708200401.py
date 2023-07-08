@@ -188,7 +188,7 @@ class MessageViewSet(APIView):
                 queryset[i].other_side_image_url = other_side_user.imageUrl
                 queryset[i].other_side_phone = other_side_user.phone
                 queryset[i].should_show_time = queryset[i].should_show_sendTime
-
+                queryset[i].current_user = user
 
 
             serializer = serializers.MessageSerializer(queryset, many=True)
@@ -242,6 +242,7 @@ class MessageViewSet(APIView):
                 messages[i].should_show_time = messages[i].should_show_sendTime
                 messages[i].other_side_image_url = other_side_user.imageUrl
                 messages[i].other_side_phone = other_side_user.phone
+                messages[i].current_user = user
                 if messages[i].user == user:
                     messages[i].message_is_mine = True
 

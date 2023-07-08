@@ -190,7 +190,6 @@ class MessageViewSet(APIView):
                 queryset[i].should_show_time = queryset[i].should_show_sendTime
 
 
-
             serializer = serializers.MessageSerializer(queryset, many=True)
 
             # 把聊天室中兩人發過的案子都撈出來
@@ -244,6 +243,8 @@ class MessageViewSet(APIView):
                 messages[i].other_side_phone = other_side_user.phone
                 if messages[i].user == user:
                     messages[i].message_is_mine = True
+                if i == len(messages)-1:
+                    print(messages[i].content,messages[i].message_is_mine)
 
             
             serializer = serializers.MessageSerializer(messages, many=True)

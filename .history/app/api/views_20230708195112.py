@@ -142,7 +142,6 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             chatroomuserShip.save()
 
             chatroom.other_side_user = other_side_user
-            chatroom.current_user = user
             serializer = serializers.ChatRoomSerializer(chatroom)
             response_data = serializer.data
             response_data['other_side_image_url'] = other_side_user.imageUrl
@@ -152,7 +151,6 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         else:
             chatroom = ChatRoom.objects.filter(id__in=common_chatroom_ids).first()
             chatroom.other_side_user = other_side_user
-            chatroom.current_user = user
             serializer = serializers.ChatRoomSerializer(chatroom)
             response_data = serializer.data
 
@@ -188,7 +186,6 @@ class MessageViewSet(APIView):
                 queryset[i].other_side_image_url = other_side_user.imageUrl
                 queryset[i].other_side_phone = other_side_user.phone
                 queryset[i].should_show_time = queryset[i].should_show_sendTime
-
 
 
             serializer = serializers.MessageSerializer(queryset, many=True)
@@ -244,6 +241,8 @@ class MessageViewSet(APIView):
                 messages[i].other_side_phone = other_side_user.phone
                 if messages[i].user == user:
                     messages[i].message_is_mine = True
+                if i == len(messages)-1:
+                    print(messages[i].content,messages[i].message_is_mine)
 
             
             serializer = serializers.MessageSerializer(messages, many=True)

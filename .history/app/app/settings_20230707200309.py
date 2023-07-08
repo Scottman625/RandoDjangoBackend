@@ -43,13 +43,12 @@ INSTALLED_APPS = [
     'corsheaders',
     'fcm_django',
     'channels',
-    'daphne',
     #local
     'modelCore',
     'api',
     'user',
     'messageApp',
-    'chat',
+    'notification',
 ]
 
 SITE_ID = 1
@@ -93,18 +92,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'app.wsgi.application'
 
-# mysite/settings.py
-# Daphne
-ASGI_APPLICATION = "app.asgi.application"
-
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
-        },
-    },
-}
+ASGI_APPLICATION = 'app.asgi.application'
 
 
 # Database
