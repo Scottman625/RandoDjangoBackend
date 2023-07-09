@@ -171,7 +171,7 @@ class ChatroomMessage(models.Model):
     match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name="messages",null=True)
 
     # user is the one who make message
-    user = models.ForeignKey(
+    sender = models.ForeignKey(
         User,
         on_delete = models.SET_NULL,
         null=True
@@ -184,7 +184,7 @@ class ChatroomMessage(models.Model):
     is_read_by_other_side = models.BooleanField(default=False)
 
     def should_show_sendTime(self):
-        last_message = ChatroomMessage.objects.filter(user=self.user,create_at__lt=self.create_at,chatroom=self.chatroom).exclude(id=self.id).last()
+        last_message = ChatroomMessage.objects.filter(sender=self.sender,create_at__lt=self.create_at,chatroom=self.chatroom).exclude(id=self.id).last()
         print(last_message)
         if not last_message or (self.create_at - last_message.create_at).total_seconds() / 60 > 10:
             return True

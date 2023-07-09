@@ -32,11 +32,11 @@ class MatchedNotChattedUsersView(APIView):
         print('z')
         # 使用上述提到的查询逻辑获取匹配但未聊天的用户
         matches = Match.objects.filter(Q(user1=current_user) | Q(user2=current_user))
-        print(matches)
+        print('matches: ',matches)
         matches_without_messages = matches.annotate(msg_count=Count('messages')).filter(msg_count=0)
         # print(matches_without_messages)
         # matches_without_messages = matches.difference(matches_with_messages)
-        # print(matches_without_messages)
+        print('matches_without_messages: ',matches_without_messages)
 
         queryset = User.objects.filter(
             Q(matches1__in=matches_without_messages) | 
@@ -62,8 +62,6 @@ class MatchedNotChattedUsersView(APIView):
         # 返回序列化后的数据
         return Response(serializer.data)
     
-    
-
 
 class ChatRoomViewSet(viewsets.GenericViewSet,
                     mixins.ListModelMixin,
@@ -78,11 +76,16 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         user = self.request.user
         chatroom_ids = list(ChatroomUserShip.objects.filter(user=user).values_list('chatroom', flat=True))
         queryset = self.queryset.filter(id__in=chatroom_ids).order_by('-update_at')
-        queryset = queryset.annotate(msg_count=Count('chatroom_messages')).filter(msg_count__gt=0)
-        # print(queryset)
+        if self.request.query_params.get('is_chat') == 'no':
+            pass
+        else:
+            queryset = queryset.annotate(msg_count=Count('chatroom_messages')).filter(msg_count__gt=0)
 
         for i in range(len(queryset)):
+            
             other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i]).filter(~Q(user=self.request.user)).first().user
+            if ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count() != 0:
+                queryset[i].unread_num = ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count()
             queryset[i].other_side_image_url = other_side_user.imageUrl
             queryset[i].other_side_name = other_side_user.name
             queryset[i].other_side_age = other_side_user.age
@@ -94,7 +97,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
                 last_message = ChatroomMessage.objects.filter(chatroom=queryset[i]).order_by('-id').first()
                 queryset[i].last_message = last_message.content[0:15]
             
-                chat_rooms_not_read_messages = ChatroomMessage.objects.filter(chatroom=queryset[i],is_read_by_other_side=False).filter(~Q(user=user))
+                chat_rooms_not_read_messages = ChatroomMessage.objects.filter(chatroom=queryset[i],is_read_by_other_side=False).filter(~Q(sender=user))
                 queryset[i].unread_num = chat_rooms_not_read_messages.count()
                 queryset[i].last_message_time = queryset[i].last_update_at
 
@@ -104,6 +107,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         user = self.request.user
         # chatroom_id = self.request.query_params.get('chatroom_id')
         chatroom = self.get_object()
+        print(chatroom)
         other_side_user = ChatroomUserShip.objects.filter(Q(chatroom=chatroom)&~Q(user=user)).first().user
         chatroom.other_side_user = other_side_user
         chatroom.current_user = user
@@ -118,11 +122,19 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         user = self.request.user
         other_side_user_phone = request.data.get('other_side_user_phone')
         other_side_user = User.objects.get(phone=other_side_user_phone)
-        user1_chatrooms = ChatroomUserShip.objects.filter(user_id=user)
-        user2_chatrooms = ChatroomUserShip.objects.filter(user_id=other_side_user)
+        user1_chatrooms = list(ChatroomUserShip.objects.filter(user_id=user).values_list('chatroom'))
+        user2_chatrooms = list(ChatroomUserShip.objects.filter(user_id=other_side_user).values_list('chatroom'))
+        user1_chatrooms_list = [item[0] for item in user1_chatrooms]
+        user2_chatrooms_list = [item[0] for item in user2_chatrooms]
+
+        print('user1_chatrooms: ',user1_chatrooms_list)
+
+        print('user2_chatrooms: ',user2_chatrooms_list)
         
         # 將兩組chatrooms的id列表取交集
-        common_chatroom_ids = set(user1_chatrooms).intersection(set(user2_chatrooms))
+        common_chatroom_ids = list(set(user1_chatrooms_list).intersection(set(user2_chatrooms_list)))
+
+        print('common_chatroom_ids: ',common_chatroom_ids)
 
 
         
@@ -146,6 +158,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             serializer = serializers.ChatRoomSerializer(chatroom)
             response_data = serializer.data
             response_data['other_side_image_url'] = other_side_user.imageUrl
+            response_data['other_side_name'] = other_side_user.name
             
             # 返回序列化后的数据
             return Response(response_data)
@@ -173,29 +186,23 @@ class MessageViewSet(APIView):
 
         if user.id in user_ids:
             queryset = ChatroomMessage.objects.filter(chatroom=chatroom).order_by('create_at')
-            print(queryset[0])
+            # print(queryset[0])
             # print('a')
             #update is_read_by_other_side
-            queryset.filter(~Q(user=user)).update(is_read_by_other_side=True)
+            queryset.filter(~Q(sender=user)).update(is_read_by_other_side=True)
             # print('b')
             for i in range(len(queryset)):
-                if queryset[i].user == user:
-
+                if queryset[i].sender == user:
                     queryset[i].message_is_mine = True
-
+                else:
+                    queryset[i].is_read_by_other_side = True
+                    queryset[i].save()
                 other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i].chatroom).filter(~Q(user=self.request.user)).first().user
-                # print('other_side_user',other_side_user)
                 queryset[i].other_side_image_url = other_side_user.imageUrl
                 queryset[i].other_side_phone = other_side_user.phone
                 queryset[i].should_show_time = queryset[i].should_show_sendTime
 
-
-
             serializer = serializers.MessageSerializer(queryset, many=True)
-
-            # 把聊天室中兩人發過的案子都撈出來
-            # 如果其中一人接了對方其中一個案子, 即可發圖片
-            is_send_image = False
 
             return Response(serializer.data)
  
@@ -216,8 +223,9 @@ class MessageViewSet(APIView):
             other_side_user = chatroom_users.exclude(phone=user.phone)[0]
             message = ChatroomMessage()
             message.chatroom = chatroom
-            message.user = user
-            
+            message.sender = user
+            match = Match.objects.filter(Q(user1=user,user2=other_side_user)|Q(user1=other_side_user,user2=user)).first()
+            message.match = match
 
             
             if content != None:
@@ -242,7 +250,7 @@ class MessageViewSet(APIView):
                 messages[i].should_show_time = messages[i].should_show_sendTime
                 messages[i].other_side_image_url = other_side_user.imageUrl
                 messages[i].other_side_phone = other_side_user.phone
-                if messages[i].user == user:
+                if messages[i].sender == user:
                     messages[i].message_is_mine = True
 
             

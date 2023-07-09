@@ -146,3 +146,5 @@ override.tf.json
 .vscode
 
 .DS_Store
+
+.history/
