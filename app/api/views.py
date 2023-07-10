@@ -17,6 +17,8 @@ from asgiref.sync import async_to_sync
 from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match
 from api import serializers
 from messageApp.tasks import *
+from chat.chat_services import get_unread_chatroom_message_count
+
 
 channel_layer = get_channel_layer()
 # Create your views here.
@@ -29,14 +31,10 @@ class MatchedNotChattedUsersView(APIView):
     def get(self, request, format=None):
         # 假设您已经有了获取当前用户的方法
         current_user = self.request.user
-        print('z')
         # 使用上述提到的查询逻辑获取匹配但未聊天的用户
         matches = Match.objects.filter(Q(user1=current_user) | Q(user2=current_user))
-        print('matches: ',matches)
         matches_without_messages = matches.annotate(msg_count=Count('messages')).filter(msg_count=0)
-        # print(matches_without_messages)
         # matches_without_messages = matches.difference(matches_with_messages)
-        print('matches_without_messages: ',matches_without_messages)
 
         queryset = User.objects.filter(
             Q(matches1__in=matches_without_messages) | 
@@ -49,7 +47,6 @@ class MatchedNotChattedUsersView(APIView):
                 #     other_side_user = queryset[i].user2
                 # else:
                 #     other_side_user = queryset[i].user1
-                # print('other_side_user',other_side_user)
                 queryset[i].other_side_image_url = queryset[i].imageUrl
                 queryset[i].other_side_phone = queryset[i].phone
                 queryset[i].age = queryset[i].age()
@@ -85,7 +82,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             
             other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i]).filter(~Q(user=self.request.user)).first().user
             if ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count() != 0:
-                queryset[i].unread_num = ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count()
+                queryset[i].unread_nums = ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count()
             queryset[i].other_side_image_url = other_side_user.imageUrl
             queryset[i].other_side_name = other_side_user.name
             queryset[i].other_side_age = other_side_user.age
@@ -98,7 +95,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
                 queryset[i].last_message = last_message.content[0:15]
             
                 chat_rooms_not_read_messages = ChatroomMessage.objects.filter(chatroom=queryset[i],is_read_by_other_side=False).filter(~Q(sender=user))
-                queryset[i].unread_num = chat_rooms_not_read_messages.count()
+                queryset[i].unread_nums = chat_rooms_not_read_messages.count()
                 queryset[i].last_message_time = queryset[i].last_update_at
 
         return queryset
@@ -107,7 +104,6 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         user = self.request.user
         # chatroom_id = self.request.query_params.get('chatroom_id')
         chatroom = self.get_object()
-        print(chatroom)
         other_side_user = ChatroomUserShip.objects.filter(Q(chatroom=chatroom)&~Q(user=user)).first().user
         chatroom.other_side_user = other_side_user
         chatroom.current_user = user
@@ -127,14 +123,9 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         user1_chatrooms_list = [item[0] for item in user1_chatrooms]
         user2_chatrooms_list = [item[0] for item in user2_chatrooms]
 
-        print('user1_chatrooms: ',user1_chatrooms_list)
 
-        print('user2_chatrooms: ',user2_chatrooms_list)
-        
         # 將兩組chatrooms的id列表取交集
         common_chatroom_ids = list(set(user1_chatrooms_list).intersection(set(user2_chatrooms_list)))
-
-        print('common_chatroom_ids: ',common_chatroom_ids)
 
 
         
@@ -186,11 +177,10 @@ class MessageViewSet(APIView):
 
         if user.id in user_ids:
             queryset = ChatroomMessage.objects.filter(chatroom=chatroom).order_by('create_at')
-            # print(queryset[0])
-            # print('a')
+
             #update is_read_by_other_side
             queryset.filter(~Q(sender=user)).update(is_read_by_other_side=True)
-            # print('b')
+
             for i in range(len(queryset)):
                 if queryset[i].sender == user:
                     queryset[i].message_is_mine = True
@@ -231,14 +221,14 @@ class MessageViewSet(APIView):
             if content != None:
                 message.content = content
                 title = '新訊息'
-                sendFCMMessage(other_side_user,title,content)
+                # sendFCMMessage(other_side_user,title,content)
             
             # upload image
             if image != None:
                 message.image = image
                 title = '新訊息'
                 content =  user.name + '傳送了一張新圖片'
-                sendFCMMessage(other_side_user,title,content)
+                # sendFCMMessage(other_side_user,title,content)
             message.save()
             chatroom.update_at = datetime.datetime.now()
             chatroom.save()
@@ -255,17 +245,25 @@ class MessageViewSet(APIView):
 
             
             serializer = serializers.MessageSerializer(messages, many=True)
-            # print('chatroom_name: ' + str(serializer.data[-1]['chatroom']))
             room_group_name = f"chat_{str(serializer.data[-1]['chatroom'])}"
             async_to_sync(channel_layer.group_send)(
                 room_group_name,
                 {
                     'type': 'chat_message',
                     'messages': serializer.data,
-    
-
                 }
             )
+
+            chatroom_message_count_list = get_unread_chatroom_message_count(user=user,is_sender=True,other_side_user=other_side_user)
+
+            async_to_sync(channel_layer.group_send)(
+                "chatroom_list",  # 這裡需要替換成你的 group 名稱
+                {
+                    'type': 'unread_count',  # 這裡需要替換成你在 consumer 中定義的方法名稱
+                    'unread_num_list': chatroom_message_count_list
+                }
+            )
+
             return Response(serializer.data)
         else:
             return Response({'message': "have no authority"})

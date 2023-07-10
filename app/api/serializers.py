@@ -20,7 +20,6 @@ class ChatRoomSerializer(serializers.ModelSerializer):
     other_side_image_url = serializers.CharField(default='')
     other_side_name = serializers.CharField(default='')
     last_message = serializers.CharField(default='')
-    unread_num = serializers.IntegerField(default=0)
     chatroom_id = serializers.IntegerField(default=0)
     last_message_time = serializers.DateTimeField(default=None)
     other_side_age = serializers.IntegerField(default=None)
