@@ -80,7 +80,7 @@ class ChatMessageConsumer(AsyncWebsocketConsumer):
 
     async def receive_json(self, content, **kwargs):
 
-        print('testtttttttttttttt')
+        # print('testtttttttttttttt')
         user = await get_user(self.scope)
         chatroom_message_count_list = get_unread_chatroom_message_count(user)
 

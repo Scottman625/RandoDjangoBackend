@@ -26,6 +26,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
     other_side_career = serializers.CharField(default='')
     other_side_user = UserSerializer(read_only=True, many=False)
     current_user = UserSerializer(read_only=True, many=False)
+    unread_nums = serializers.IntegerField(default=0)
 
     class Meta:
         model = ChatRoom

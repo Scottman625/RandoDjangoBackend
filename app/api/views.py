@@ -91,10 +91,12 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             queryset[i].current_user = user
 
             if ChatroomMessage.objects.filter(chatroom=queryset[i]).count() > 0:
+                # print('aaa')
                 last_message = ChatroomMessage.objects.filter(chatroom=queryset[i]).order_by('-id').first()
                 queryset[i].last_message = last_message.content[0:15]
             
                 chat_rooms_not_read_messages = ChatroomMessage.objects.filter(chatroom=queryset[i],is_read_by_other_side=False).filter(~Q(sender=user))
+                # print(chat_rooms_not_read_messages.count())
                 queryset[i].unread_nums = chat_rooms_not_read_messages.count()
                 queryset[i].last_message_time = queryset[i].last_update_at
 
