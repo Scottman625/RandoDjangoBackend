@@ -144,7 +144,7 @@ class Match(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 class ChatRoom(models.Model):
-    update_at = models.DateTimeField(auto_now=True, blank = True, null=True) 
+    update_at = models.DateTimeField(auto_now=False, blank = True, null=True) 
 
     def last_update_at(self):
         last_message = ChatroomMessage.objects.filter(chatroom=self).order_by('create_at').first()
@@ -158,6 +158,7 @@ class ChatroomUserShip(models.Model):
     chatroom = models.ForeignKey(
         ChatRoom,
         on_delete=models.CASCADE,
+        related_name='chatroom_usership',
     ) 
 
     is_create = models.BooleanField(default=False)
@@ -178,14 +179,14 @@ class ChatroomMessage(models.Model):
     )
 
     content = models.TextField(default='', blank = True, null=True)
-    create_at = models.DateTimeField(auto_now=True, blank = True,null=True) 
+    create_at = models.DateTimeField(auto_now=False, blank = True,null=True) 
 
     image = models.ImageField(upload_to=image_upload_handler, blank=True, null=True)
     is_read_by_other_side = models.BooleanField(default=False)
 
     def should_show_sendTime(self):
         last_message = ChatroomMessage.objects.filter(sender=self.sender,create_at__lt=self.create_at,chatroom=self.chatroom).exclude(id=self.id).last()
-        print(last_message)
+        # print(last_message)
         if not last_message or (self.create_at - last_message.create_at).total_seconds() / 60 > 10:
             return True
         else:

@@ -21,7 +21,7 @@ class ChatRoomAdmin(admin.ModelAdmin):
 
 @admin.register(ChatroomMessage)
 class ChatroomMessageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'sender', 'chatroom', )
+    list_display = ('id', 'sender', 'chatroom','create_at' )
 
 @admin.register(ChatroomUserShip)
 class ChatroomUserShipAdmin(admin.ModelAdmin):

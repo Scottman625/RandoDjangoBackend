@@ -17,7 +17,7 @@ from asgiref.sync import async_to_sync
 from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match
 from api import serializers
 from messageApp.tasks import *
-from chat.chat_services import get_unread_chatroom_message_count
+from chat.chat_services import get_unread_chatroom_message_count, get_chatroom_list
 
 
 channel_layer = get_channel_layer()
@@ -89,16 +89,21 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             queryset[i].other_side_career = other_side_user.career
             queryset[i].other_side_user = other_side_user
             queryset[i].current_user = user
+            queryset[i].current_user_id = user.id
 
             if ChatroomMessage.objects.filter(chatroom=queryset[i]).count() > 0:
-                # print('aaa')
                 last_message = ChatroomMessage.objects.filter(chatroom=queryset[i]).order_by('-id').first()
-                queryset[i].last_message = last_message.content[0:15]
+                if (last_message.content != '') and (last_message.content != None) :
+                    queryset[i].last_message = last_message.content[0:15]
+                elif (last_message.image != '' ) and (last_message.image != None):
+                    queryset[i].last_message = '已傳送圖片'
+                else:
+                    queryset[i].last_message = ''
             
                 chat_rooms_not_read_messages = ChatroomMessage.objects.filter(chatroom=queryset[i],is_read_by_other_side=False).filter(~Q(sender=user))
-                # print(chat_rooms_not_read_messages.count())
                 queryset[i].unread_nums = chat_rooms_not_read_messages.count()
                 queryset[i].last_message_time = queryset[i].last_update_at
+        
 
         return queryset
     
@@ -110,6 +115,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
         chatroom.other_side_user = other_side_user
         chatroom.current_user = user
         chatroom.other_side_age = other_side_user.age
+        chatroom.current_user_id = user.id
         if ChatroomMessage.objects.filter(chatroom=chatroom).count() > 0:
             chatroom.last_message_time = chatroom.last_update_at
         serializer = serializers.ChatRoomSerializer(chatroom)
@@ -148,7 +154,19 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
 
             chatroom.other_side_user = other_side_user
             chatroom.current_user = user
+
+            if ChatroomMessage.objects.filter(chatroom=chatroom,sender=other_side_user,is_read_by_other_side=False).count() != 0:
+                    chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=chatroom,sender=other_side_user,is_read_by_other_side=False).count()
             serializer = serializers.ChatRoomSerializer(chatroom)
+            room_group_name = f"chatRoomList_{str(user.id)}"
+            async_to_sync(channel_layer.group_send)(
+                room_group_name,  # 這裡需要替換成你的 group 名稱
+                {
+                    'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
+                    'chatrooms': serializer.data,
+                }
+            )
+            
             response_data = serializer.data
             response_data['other_side_image_url'] = other_side_user.imageUrl
             response_data['other_side_name'] = other_side_user.name
@@ -156,6 +174,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             # 返回序列化后的数据
             return Response(response_data)
         else:
+            print('aaaaa')
             chatroom = ChatRoom.objects.filter(id__in=common_chatroom_ids).first()
             chatroom.other_side_user = other_side_user
             chatroom.current_user = user
@@ -205,7 +224,8 @@ class MessageViewSet(APIView):
         user = self.request.user
         chatroom_id = self.request.query_params.get('chatroom_id')
         content = request.data.get('content')
-        image = request.data.get('image')
+
+        image = request.FILES.get('image')
 
         chatroom = ChatRoom.objects.get(id=chatroom_id)
         user_ids = list(ChatroomUserShip.objects.filter(chatroom=chatroom).values_list('user', flat=True))
@@ -214,6 +234,7 @@ class MessageViewSet(APIView):
         if user in chatroom_users:
             other_side_user = chatroom_users.exclude(phone=user.phone)[0]
             message = ChatroomMessage()
+            message.create_at = datetime.datetime.now()
             message.chatroom = chatroom
             message.sender = user
             match = Match.objects.filter(Q(user1=user,user2=other_side_user)|Q(user1=other_side_user,user2=user)).first()
@@ -247,22 +268,41 @@ class MessageViewSet(APIView):
 
             
             serializer = serializers.MessageSerializer(messages, many=True)
-            room_group_name = f"chat_{str(serializer.data[-1]['chatroom'])}"
+
+            chatrooms = get_chatroom_list(user=other_side_user)
+            for each_chatroom in chatrooms:
+                print(each_chatroom)
+                other_side_user_chatroomUser = ChatroomUserShip.objects.filter(chatroom=each_chatroom).filter(~Q(user=other_side_user)).first().user
+                if ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count() != 0:
+                    each_chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count()
+                each_chatroom.other_side_image_url = other_side_user_chatroomUser.imageUrl
+                each_chatroom.other_side_name = other_side_user_chatroomUser.name
+                if ChatroomMessage.objects.filter(chatroom=each_chatroom).count() > 0:
+                    last_message = ChatroomMessage.objects.filter(chatroom=each_chatroom).order_by('-create_at').first()
+                    each_chatroom.last_message_time = last_message.create_at
+                    each_chatroom.update_at = last_message.create_at
+
+                    if (last_message.content != '') and (last_message.content != None) :
+                        each_chatroom.last_message = last_message.content[0:15]
+                    elif (last_message.image != '' ) and (last_message.image != None):
+                        each_chatroom.last_message = '已傳送圖片'
+                    else:
+                        each_chatroom.last_message = ''
+                each_chatroom.chatroom_id = each_chatroom.id
+                each_chatroom.other_side_age = other_side_user_chatroomUser.age
+                each_chatroom.other_side_career = other_side_user_chatroomUser.career
+                each_chatroom.current_user_id = other_side_user.id
+                each_chatroom.other_side_user = other_side_user_chatroomUser
+                each_chatroom.save()
+                
+            chatRoom_serializer = serializers.ChatRoomSerializer(chatrooms,many=True)
+            room_group_name = f"chatRoomMessages_{str(other_side_user.id)}"
             async_to_sync(channel_layer.group_send)(
-                room_group_name,
+                room_group_name,  # 這裡需要替換成你的 group 名稱
                 {
-                    'type': 'chat_message',
+                    'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
+                    'chatrooms': chatRoom_serializer.data,
                     'messages': serializer.data,
-                }
-            )
-
-            chatroom_message_count_list = get_unread_chatroom_message_count(user=user,is_sender=True,other_side_user=other_side_user)
-
-            async_to_sync(channel_layer.group_send)(
-                "chatroom_list",  # 這裡需要替換成你的 group 名稱
-                {
-                    'type': 'unread_count',  # 這裡需要替換成你在 consumer 中定義的方法名稱
-                    'unread_num_list': chatroom_message_count_list
                 }
             )
 
