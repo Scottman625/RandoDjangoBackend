@@ -4,6 +4,7 @@ from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,M
 
 class UserSerializer(serializers.ModelSerializer):
     age = serializers.IntegerField(default=None)
+    image = serializers.CharField(default='')
     class Meta:
         model = User
         fields = '__all__'

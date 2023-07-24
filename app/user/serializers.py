@@ -1,19 +1,30 @@
 from django.contrib.auth import get_user_model, authenticate
-from modelCore.models import User
+from modelCore.models import User, UserImage
 from rest_framework import serializers
+
+class UserImageSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = UserImage
+        fields = '__all__'
+        read_only_fields = ('id',)
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for the users object"""
     # is_gotten_line_id = serializers.BooleanField(default=False)
+    total_unread_num = serializers.IntegerField(read_only=True,default=0)
+    total_likes_count = serializers.IntegerField(read_only=True,default=0)
+    userImages = UserImageSerializer(read_only=True, many=True)
+    age = serializers.IntegerField(read_only=True,default=0)
 
     class Meta:
         model = get_user_model()
-        fields = ('phone', 'password', 'name', 'line_id', 'apple_id')
-        extra_kwargs = {
-            'password': {'write_only': True, 'min_length': 5},
-            'line_id': {'write_only': True},
-            'apple_id': {'write_only': True},
-        }
+        fields = ('__all__')
+        # extra_kwargs = {
+        #     'password': {'write_only': True, 'min_length': 5},
+        #     'line_id': {'write_only': True},
+        #     'apple_id': {'write_only': True},
+        # }
 
     def create(self, validated_data):
         """Create a new user with encrypted password and return it"""
@@ -32,11 +43,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UpdateUserSerializer(serializers.ModelSerializer):
     total_unread_num = serializers.IntegerField(read_only=True,default=0)
+    total_likes_count = serializers.IntegerField(read_only=True,default=0)
+    userImages = UserImageSerializer(read_only=True, many=True)
+    age = serializers.IntegerField(read_only=True,default=0)
 
     class Meta:
         model = get_user_model()
-        fields = ('id','phone','name','gender','email','address','image','total_unread_num')
-        read_only_fields = ('id','image', 'background_image')
+        fields = '__all__'
+        read_only_fields = ('id',)
 
 class AuthTokenSerializer(serializers.Serializer):
     """Serializer for the user authentication object"""
@@ -95,6 +109,7 @@ class AuthTokenSerializer(serializers.Serializer):
         return attrs
 
 class GetUserSerializer(serializers.ModelSerializer):
+    userImages = UserImageSerializer(read_only=True, many=True)
     class Meta:
         model = User
         fields = '__all__'

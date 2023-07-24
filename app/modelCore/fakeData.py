@@ -6,7 +6,7 @@ from django.utils import timezone
 import pytz
 from pytz import tzinfo
 from django.db.models import Avg ,Sum ,Q
-from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match, UserLike
+from modelCore.models import *
 
 
 def importCityCounty():
@@ -509,3 +509,8 @@ def importCareer():
         else:
             user.career = '設計師'
         user.save()
+
+def importUserImage():
+    userImages = UserImage.objects.all()
+    for userImage in userImages:
+        userImage.save()

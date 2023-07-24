@@ -1,4 +1,4 @@
-from modelCore.models import User 
+from modelCore.models import User ,UserImage
 from rest_framework import generics, authentication, permissions
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.settings import api_settings
@@ -10,6 +10,23 @@ from rest_framework import viewsets, mixins
 from user.serializers import UserSerializer, AuthTokenSerializer, UpdateUserSerializer ,GetUserSerializer
 from api import serializers
 from django.db.models import Q
+
+class GetUserDataView(generics.RetrieveUpdateAPIView):
+    """Manage the authenticated user"""
+    serializer_class = UserSerializer
+    authentication_classes = (authentication.TokenAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_object(self):
+        """Retrieve and return authentication user"""
+        # if self.request.user.line_id != None and self.request.user.line_id != '':
+        #     self.request.user.is_gotten_line_id = True
+        user = self.request.user
+        user.total_likes_count = user.get_likes_count()
+        user.userImages = UserImage.objects.filter(user=user)
+        user.age = user.age()
+
+        return user 
 
 class CreateUserView(generics.CreateAPIView):
     """Create a new user in the system"""
@@ -36,7 +53,9 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
         """Retrieve and return authentication user"""
         # if self.request.user.line_id != None and self.request.user.line_id != '':
         #     self.request.user.is_gotten_line_id = True
-        
+        user = self.request.user
+        user.total_likes_count = user.get_likes_count()
+        user.userImages = UserImage.objects.filter(user=user)
 
         return self.request.user
 
@@ -98,16 +117,34 @@ class UpdateUserBackgroundImage(APIView):
         serializer = GetUserSerializer(user)
         return Response(serializer.data)
 
+class UploadUserImage(APIView):
+    authentication_classes = (authentication.TokenAuthentication,)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        user = self.request.user
+        image = request.FILES.get('image')
+        UserImage.objects.create(user=user,image=image)
+        user.userImages = UserImage.objects.filter(user=user)
+        serializer = GetUserSerializer(user)
+        return Response(serializer.data)
+
 class UpdateUserImage(APIView):
     authentication_classes = (authentication.TokenAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
 
+
     def put(self, request, format=None):
         user = self.request.user
-        image = request.data.get('image')
-        if image != None:
-            user.image = image
         user.save()
+        serializer = GetUserSerializer(user)
+        return Response(serializer.data)
+    
+    def delete(self, request, pk):
+        user = self.request.user
+        # userImageId = self.request.query_params.get('userImageId')
+        UserImage.objects.get(user=user,id=pk).delete()
+        user.userImages = UserImage.objects.filter(user=user)
         serializer = GetUserSerializer(user)
         return Response(serializer.data)
 

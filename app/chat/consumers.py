@@ -79,34 +79,20 @@ class ChatMessageConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-    # async def receive_json(self, content, **kwargs):
 
-    #     print(self.scope)
-    #     user = await get_user(self.scope)
-    #     chatrooms = get_chatroom_list(user)
-    #     print(chatrooms)
+    # async def receive_json(self, content, **kwargs):
+    # # Assuming 'chatrooms' and 'messages' are somehow included in the scope
+    #     chatrooms = self.scope.get('chatrooms', [])
+    #     messages = self.scope.get('messages', [])
+            
     #     await self.channel_layer.group_send(
     #         self.group_name,
     #         {
     #             'type': 'chatrooms',
-    #             'chatrooms': chatrooms,              
-
+    #             'chatrooms': chatrooms,
+    #             'messages': messages
     #         }
     #     )
-
-    async def receive_json(self, content, **kwargs):
-    # Assuming 'chatrooms' and 'messages' are somehow included in the scope
-        chatrooms = self.scope.get('chatrooms', [])
-        messages = self.scope.get('messages', [])
-            
-        await self.channel_layer.group_send(
-            self.group_name,
-            {
-                'type': 'chatrooms',
-                'chatrooms': chatrooms,
-                'messages': messages
-            }
-        )
 
     async def chatrooms(self, event):
         # 这个方法将处理你在 group_send 中发送的消息

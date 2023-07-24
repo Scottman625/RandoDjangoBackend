@@ -47,9 +47,10 @@ class MatchedNotChattedUsersView(APIView):
                 #     other_side_user = queryset[i].user2
                 # else:
                 #     other_side_user = queryset[i].user1
-                queryset[i].other_side_image_url = queryset[i].imageUrl
+                queryset[i].other_side_image_url = queryset[i].image
                 queryset[i].other_side_phone = queryset[i].phone
                 queryset[i].age = queryset[i].age()
+
                 # queryset[i].other_side_career = queryset[i].career
 
 
@@ -60,6 +61,70 @@ class MatchedNotChattedUsersView(APIView):
         return Response(serializer.data)
     
 
+class RefreshChatMessageViewSet(APIView):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+    def post(self, request, format=None):
+        user = self.request.user.id
+        chatroom_id = self.request.query_params.get('chatroom_id')
+        chatroom = ChatRoom.objects.get(id=chatroom_id)
+        chatrooms = get_chatroom_list(user=user)
+        messages = ChatroomMessage.objects.filter(chatroom=chatroom).order_by('create_at')
+        messages.filter(~Q(sender=user)).update(is_read_by_other_side=True)
+        for each_chatroom in chatrooms:
+                print(each_chatroom)
+                other_side_user_chatroomUser = ChatroomUserShip.objects.filter(chatroom=each_chatroom).filter(~Q(user=user)).first().user
+                if ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count() != 0:
+                    each_chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count()
+                each_chatroom.other_side_image_url = other_side_user_chatroomUser.image
+                each_chatroom.other_side_name = other_side_user_chatroomUser.name
+                if ChatroomMessage.objects.filter(chatroom=each_chatroom).count() > 0:
+                    last_message = ChatroomMessage.objects.filter(chatroom=each_chatroom).order_by('-create_at').first()
+                    each_chatroom.last_message_time = last_message.create_at
+                    each_chatroom.update_at = last_message.create_at
+
+                    if (last_message.content != '') and (last_message.content != None) :
+                        each_chatroom.last_message = last_message.content[0:15]
+                    elif (last_message.image != '' ) and (last_message.image != None):
+                        each_chatroom.last_message = '已傳送圖片'
+                    else:
+                        each_chatroom.last_message = ''
+                each_chatroom.chatroom_id = each_chatroom.id
+                each_chatroom.other_side_age = other_side_user_chatroomUser.age
+                each_chatroom.other_side_career = other_side_user_chatroomUser.career
+                each_chatroom.current_user_id = user
+                each_chatroom.other_side_user = other_side_user_chatroomUser
+                each_chatroom.save()
+        chatRoom_serializer = serializers.ChatRoomSerializer(chatrooms,many=True)
+
+        user_ids = list(ChatroomUserShip.objects.filter(chatroom=chatroom).values_list('user', flat=True))
+        chatroom_users = User.objects.filter(id__in=user_ids)
+
+        if User.objects.get(id=user) in chatroom_users:
+            other_side_user = chatroom_users.exclude(id=user)[0]
+
+        for i in range(len(messages)):
+
+                messages[i].should_show_time = messages[i].should_show_sendTime
+                messages[i].other_side_image_url = other_side_user.image
+                messages[i].other_side_phone = other_side_user.phone
+                if messages[i].sender == user:
+                    messages[i].message_is_mine = True
+
+        chatMessages_serializer = serializers.MessageSerializer(messages,many=True)
+        room_group_name = f"chatRoomMessages_{str(user)}"
+        async_to_sync(channel_layer.group_send)(
+            room_group_name,  # 這裡需要替換成你的 group 名稱
+            {
+                'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
+                'chatrooms': chatRoom_serializer.data,
+                'messages': chatMessages_serializer.data,
+            }
+        )
+
+        print('data has refresh')
+        return Response({'message': "ok"})
+    
 class ChatRoomViewSet(viewsets.GenericViewSet,
                     mixins.ListModelMixin,
                     mixins.RetrieveModelMixin,
@@ -83,7 +148,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i]).filter(~Q(user=self.request.user)).first().user
             if ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count() != 0:
                 queryset[i].unread_nums = ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count()
-            queryset[i].other_side_image_url = other_side_user.imageUrl
+            queryset[i].other_side_image_url = other_side_user.image
             queryset[i].other_side_name = other_side_user.name
             queryset[i].other_side_age = other_side_user.age
             queryset[i].other_side_career = other_side_user.career
@@ -158,17 +223,18 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             if ChatroomMessage.objects.filter(chatroom=chatroom,sender=other_side_user,is_read_by_other_side=False).count() != 0:
                     chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=chatroom,sender=other_side_user,is_read_by_other_side=False).count()
             serializer = serializers.ChatRoomSerializer(chatroom)
-            room_group_name = f"chatRoomList_{str(user.id)}"
+            room_group_name = f"chatRoomMessages_{str(user.id)}"
             async_to_sync(channel_layer.group_send)(
                 room_group_name,  # 這裡需要替換成你的 group 名稱
                 {
                     'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
                     'chatrooms': serializer.data,
+                    'messages': [],
                 }
             )
             
             response_data = serializer.data
-            response_data['other_side_image_url'] = other_side_user.imageUrl
+            response_data['other_side_image_url'] = other_side_user.image
             response_data['other_side_name'] = other_side_user.name
             
             # 返回序列化后的数据
@@ -209,7 +275,7 @@ class MessageViewSet(APIView):
                     queryset[i].is_read_by_other_side = True
                     queryset[i].save()
                 other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i].chatroom).filter(~Q(user=self.request.user)).first().user
-                queryset[i].other_side_image_url = other_side_user.imageUrl
+                queryset[i].other_side_image_url = other_side_user.image
                 queryset[i].other_side_phone = other_side_user.phone
                 queryset[i].should_show_time = queryset[i].should_show_sendTime
 
@@ -261,7 +327,7 @@ class MessageViewSet(APIView):
             for i in range(len(messages)):
 
                 messages[i].should_show_time = messages[i].should_show_sendTime
-                messages[i].other_side_image_url = other_side_user.imageUrl
+                messages[i].other_side_image_url = other_side_user.image
                 messages[i].other_side_phone = other_side_user.phone
                 if messages[i].sender == user:
                     messages[i].message_is_mine = True
@@ -269,13 +335,50 @@ class MessageViewSet(APIView):
             
             serializer = serializers.MessageSerializer(messages, many=True)
 
-            chatrooms = get_chatroom_list(user=other_side_user)
+            chatrooms = get_chatroom_list(user=user)
             for each_chatroom in chatrooms:
                 print(each_chatroom)
+                other_side_user_chatroomUser = ChatroomUserShip.objects.filter(chatroom=each_chatroom).filter(~Q(user=user)).first().user
+                if ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count() != 0:
+                    each_chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count()
+                each_chatroom.other_side_image_url = other_side_user_chatroomUser.image
+                each_chatroom.other_side_name = other_side_user_chatroomUser.name
+                if ChatroomMessage.objects.filter(chatroom=each_chatroom).count() > 0:
+                    last_message = ChatroomMessage.objects.filter(chatroom=each_chatroom).order_by('-create_at').first()
+                    each_chatroom.last_message_time = last_message.create_at
+                    each_chatroom.update_at = last_message.create_at
+
+                    if (last_message.content != '') and (last_message.content != None) :
+                        each_chatroom.last_message = last_message.content[0:15]
+                    elif (last_message.image != '' ) and (last_message.image != None):
+                        each_chatroom.last_message = '已傳送圖片'
+                    else:
+                        each_chatroom.last_message = ''
+                each_chatroom.chatroom_id = each_chatroom.id
+                each_chatroom.other_side_age = other_side_user_chatroomUser.age
+                each_chatroom.other_side_career = other_side_user_chatroomUser.career
+                each_chatroom.current_user_id = user.id
+                each_chatroom.other_side_user = other_side_user_chatroomUser
+                each_chatroom.save()
+                
+            chatRoom_serializer = serializers.ChatRoomSerializer(chatrooms,many=True)
+            room_group_name = f"chatRoomMessages_{str(user.id)}"
+            async_to_sync(channel_layer.group_send)(
+                room_group_name,  # 這裡需要替換成你的 group 名稱
+                {
+                    'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
+                    'chatrooms': chatRoom_serializer.data,
+                    'messages': serializer.data,
+                }
+            )
+
+            other_side_chatrooms = get_chatroom_list(user=other_side_user)
+            for each_chatroom in other_side_chatrooms:
+                # print(each_chatroom)
                 other_side_user_chatroomUser = ChatroomUserShip.objects.filter(chatroom=each_chatroom).filter(~Q(user=other_side_user)).first().user
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count() != 0:
                     each_chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count()
-                each_chatroom.other_side_image_url = other_side_user_chatroomUser.imageUrl
+                each_chatroom.other_side_image_url = other_side_user_chatroomUser.image
                 each_chatroom.other_side_name = other_side_user_chatroomUser.name
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom).count() > 0:
                     last_message = ChatroomMessage.objects.filter(chatroom=each_chatroom).order_by('-create_at').first()
@@ -295,13 +398,14 @@ class MessageViewSet(APIView):
                 each_chatroom.other_side_user = other_side_user_chatroomUser
                 each_chatroom.save()
                 
-            chatRoom_serializer = serializers.ChatRoomSerializer(chatrooms,many=True)
-            room_group_name = f"chatRoomMessages_{str(other_side_user.id)}"
+            other_side_chatRoom_serializer = serializers.ChatRoomSerializer(other_side_chatrooms,many=True)
+
+            other_side_room_group_name = f"chatRoomMessages_{str(other_side_user.id)}"
             async_to_sync(channel_layer.group_send)(
-                room_group_name,  # 這裡需要替換成你的 group 名稱
+                other_side_room_group_name,  # 這裡需要替換成你的 group 名稱
                 {
                     'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
-                    'chatrooms': chatRoom_serializer.data,
+                    'chatrooms': other_side_chatRoom_serializer.data,
                     'messages': serializer.data,
                 }
             )

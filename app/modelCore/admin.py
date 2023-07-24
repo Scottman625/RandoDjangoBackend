@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match, UserLike
+from .models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match, UserLike, UserImage
 # Register your models here.
 
 
@@ -26,3 +26,7 @@ class ChatroomMessageAdmin(admin.ModelAdmin):
 @admin.register(ChatroomUserShip)
 class ChatroomUserShipAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'chatroom')
+
+@admin.register(UserImage)
+class ChatroomUserShipAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'image')
