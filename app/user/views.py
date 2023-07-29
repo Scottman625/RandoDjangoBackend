@@ -10,6 +10,7 @@ from rest_framework import viewsets, mixins
 from user.serializers import UserSerializer, AuthTokenSerializer, UpdateUserSerializer ,GetUserSerializer
 from api import serializers
 from django.db.models import Q
+from api.views import generate_presigned_url
 
 class GetUserDataView(generics.RetrieveUpdateAPIView):
     """Manage the authenticated user"""
@@ -23,7 +24,11 @@ class GetUserDataView(generics.RetrieveUpdateAPIView):
         #     self.request.user.is_gotten_line_id = True
         user = self.request.user
         user.total_likes_count = user.get_likes_count()
-        user.userImages = UserImage.objects.filter(user=user)
+        user.image = generate_presigned_url(request=self.request,file_name=user.image)
+        userImages = UserImage.objects.filter(user=user)
+        for userImage in userImages:
+            userImage.imageUrl = generate_presigned_url(request=self.request,file_name=userImage.image.name)
+        user.userImages = userImages
         user.age = user.age()
 
         return user 
@@ -55,7 +60,10 @@ class ManageUserView(generics.RetrieveUpdateAPIView):
         #     self.request.user.is_gotten_line_id = True
         user = self.request.user
         user.total_likes_count = user.get_likes_count()
-        user.userImages = UserImage.objects.filter(user=user)
+        userImages = UserImage.objects.filter(user=user)
+        for userImage in userImages:
+            userImage.imageUrl = generate_presigned_url(request=self.request,file_name=userImage.image.name)
+        user.userImages = userImages
 
         return self.request.user
 
@@ -125,7 +133,10 @@ class UploadUserImage(APIView):
         user = self.request.user
         image = request.FILES.get('image')
         UserImage.objects.create(user=user,image=image)
-        user.userImages = UserImage.objects.filter(user=user)
+        userImages = UserImage.objects.filter(user=user)
+        for userImage in userImages:
+            userImage.imageUrl = generate_presigned_url(request=self.request,file_name=userImage.image.name)
+        user.userImages = userImages
         serializer = GetUserSerializer(user)
         return Response(serializer.data)
 
@@ -144,7 +155,10 @@ class UpdateUserImage(APIView):
         user = self.request.user
         # userImageId = self.request.query_params.get('userImageId')
         UserImage.objects.get(user=user,id=pk).delete()
-        user.userImages = UserImage.objects.filter(user=user)
+        userImages = UserImage.objects.filter(user=user)
+        for userImage in userImages:
+            userImage.imageUrl = generate_presigned_url(request=self.request,file_name=userImage.image.name)
+        user.userImages = userImages
         serializer = GetUserSerializer(user)
         return Response(serializer.data)
 

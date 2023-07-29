@@ -3,6 +3,7 @@ from modelCore.models import User, UserImage
 from rest_framework import serializers
 
 class UserImageSerializer(serializers.ModelSerializer):
+    imageUrl = serializers.CharField(default='')
 
     class Meta:
         model = UserImage

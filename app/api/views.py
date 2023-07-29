@@ -10,6 +10,11 @@ from django.db.models import Q
 from django.db.models import Avg , Count ,Sum
 from django.shortcuts import get_object_or_404
 import datetime
+from django.http import JsonResponse
+import boto3
+import os
+from decouple import config
+from botocore.exceptions import NoCredentialsError
 
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -23,6 +28,33 @@ from chat.chat_services import get_unread_chatroom_message_count, get_chatroom_l
 channel_layer = get_channel_layer()
 # Create your views here.
 
+def generate_presigned_url(request,file_name):
+    # 这是假设的文件名，实际情况中你可能需要从请求参数或数据库中获取
+    # file_name = 'user_image.png' 
+    # session = boto3.Session(
+    # aws_access_key_id = config("AWS_ACCESS_KEY_ID"),
+    # aws_secret_access_key = config("AWS_SECRET_ACCESS_KEY"),
+    # )
+    # 创建一个S3客户端
+    s3_client = boto3.client('s3')
+    
+    file_name = file_name.replace('https://rando-app-bucket.s3.amazonaws.com/', '')
+    file_name = file_name.split('?')[0]
+    # print(file_name)
+    try:
+        # 生成预签名URL
+        response = s3_client.generate_presigned_url('get_object',
+                                                    Params={'Bucket': "rando-app-bucket",
+                                                            'Key': file_name},
+                                                    ExpiresIn=3600)
+
+    except NoCredentialsError:
+        return JsonResponse({'error': 'No AWS credentials found'}, status=400)
+
+    # print(response)
+    # 返回生成的预签名URL
+    return response
+
 class MatchedNotChattedUsersView(APIView):
 
     authentication_classes = (TokenAuthentication,)
@@ -35,21 +67,18 @@ class MatchedNotChattedUsersView(APIView):
         matches = Match.objects.filter(Q(user1=current_user) | Q(user2=current_user))
         matches_without_messages = matches.annotate(msg_count=Count('messages')).filter(msg_count=0)
         # matches_without_messages = matches.difference(matches_with_messages)
-
+        print(matches_without_messages)
         queryset = User.objects.filter(
             Q(matches1__in=matches_without_messages) | 
             Q(matches2__in=matches_without_messages)
-        ).exclude(pk=current_user.pk)
-
+        ).exclude(pk=current_user.pk).distinct()
+        print(queryset)
         for i in range(len(queryset)):
-                
-                # if queryset[i].user1 == current_user:
-                #     other_side_user = queryset[i].user2
-                # else:
-                #     other_side_user = queryset[i].user1
-                queryset[i].other_side_image_url = queryset[i].image
-                queryset[i].other_side_phone = queryset[i].phone
-                queryset[i].age = queryset[i].age()
+
+            queryset[i].other_side_image_url = generate_presigned_url(request=request,file_name=queryset[i].image)
+            queryset[i].other_side_phone = queryset[i].phone
+            queryset[i].age = queryset[i].age()
+            # queryset[i].imageUrl = generate_presigned_url(request=request,file_name=current_user.image)
 
                 # queryset[i].other_side_career = queryset[i].career
 
@@ -76,7 +105,7 @@ class RefreshChatMessageViewSet(APIView):
                 other_side_user_chatroomUser = ChatroomUserShip.objects.filter(chatroom=each_chatroom).filter(~Q(user=user)).first().user
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count() != 0:
                     each_chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count()
-                each_chatroom.other_side_image_url = other_side_user_chatroomUser.image
+                each_chatroom.other_side_image_url = generate_presigned_url(request=request,file_name=other_side_user_chatroomUser.image)
                 each_chatroom.other_side_name = other_side_user_chatroomUser.name
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom).count() > 0:
                     last_message = ChatroomMessage.objects.filter(chatroom=each_chatroom).order_by('-create_at').first()
@@ -106,7 +135,7 @@ class RefreshChatMessageViewSet(APIView):
         for i in range(len(messages)):
 
                 messages[i].should_show_time = messages[i].should_show_sendTime
-                messages[i].other_side_image_url = other_side_user.image
+                messages[i].other_side_image_url = generate_presigned_url(request=request,file_name=other_side_user.image)
                 messages[i].other_side_phone = other_side_user.phone
                 if messages[i].sender == user:
                     messages[i].message_is_mine = True
@@ -148,13 +177,14 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i]).filter(~Q(user=self.request.user)).first().user
             if ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count() != 0:
                 queryset[i].unread_nums = ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_user,is_read_by_other_side=False).count()
-            queryset[i].other_side_image_url = other_side_user.image
+            queryset[i].other_side_image_url = generate_presigned_url(request=self.request,file_name=other_side_user.image)
             queryset[i].other_side_name = other_side_user.name
             queryset[i].other_side_age = other_side_user.age
             queryset[i].other_side_career = other_side_user.career
             queryset[i].other_side_user = other_side_user
             queryset[i].current_user = user
             queryset[i].current_user_id = user.id
+            queryset[i].current_user.imageUrl = generate_presigned_url(request=self.request,file_name=user.image)
 
             if ChatroomMessage.objects.filter(chatroom=queryset[i]).count() > 0:
                 last_message = ChatroomMessage.objects.filter(chatroom=queryset[i]).order_by('-id').first()
@@ -219,6 +249,7 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
 
             chatroom.other_side_user = other_side_user
             chatroom.current_user = user
+            
 
             if ChatroomMessage.objects.filter(chatroom=chatroom,sender=other_side_user,is_read_by_other_side=False).count() != 0:
                     chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=chatroom,sender=other_side_user,is_read_by_other_side=False).count()
@@ -234,16 +265,17 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             )
             
             response_data = serializer.data
-            response_data['other_side_image_url'] = other_side_user.image
+            response_data['other_side_image_url'] = generate_presigned_url(request=request,file_name=other_side_user.image)
             response_data['other_side_name'] = other_side_user.name
+            response_data['other_side_image_url'] = generate_presigned_url(request=request,file_name=other_side_user.image)
             
             # 返回序列化后的数据
             return Response(response_data)
         else:
-            print('aaaaa')
             chatroom = ChatRoom.objects.filter(id__in=common_chatroom_ids).first()
             chatroom.other_side_user = other_side_user
             chatroom.current_user = user
+            chatroom.other_side_image_url = generate_presigned_url(request=request,file_name=other_side_user.image)
             serializer = serializers.ChatRoomSerializer(chatroom)
             response_data = serializer.data
 
@@ -275,9 +307,12 @@ class MessageViewSet(APIView):
                     queryset[i].is_read_by_other_side = True
                     queryset[i].save()
                 other_side_user = ChatroomUserShip.objects.filter(chatroom=queryset[i].chatroom).filter(~Q(user=self.request.user)).first().user
-                queryset[i].other_side_image_url = other_side_user.image
+                queryset[i].other_side_image_url = generate_presigned_url(request=request,file_name=other_side_user.image)
                 queryset[i].other_side_phone = other_side_user.phone
                 queryset[i].should_show_time = queryset[i].should_show_sendTime
+                # queryset[i].current_user.imageUrl = generate_presigned_url(request=request,file_name=user.image)
+                if queryset[i].image.name is not None and queryset[i].image.name.strip() != '':
+                    queryset[i].imageUrl = generate_presigned_url(request=request,file_name=queryset[i].image.name)
 
             serializer = serializers.MessageSerializer(queryset, many=True)
 
@@ -327,7 +362,7 @@ class MessageViewSet(APIView):
             for i in range(len(messages)):
 
                 messages[i].should_show_time = messages[i].should_show_sendTime
-                messages[i].other_side_image_url = other_side_user.image
+                messages[i].other_side_image_url = generate_presigned_url(request=request,file_name=other_side_user.image)
                 messages[i].other_side_phone = other_side_user.phone
                 if messages[i].sender == user:
                     messages[i].message_is_mine = True
@@ -341,7 +376,7 @@ class MessageViewSet(APIView):
                 other_side_user_chatroomUser = ChatroomUserShip.objects.filter(chatroom=each_chatroom).filter(~Q(user=user)).first().user
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count() != 0:
                     each_chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count()
-                each_chatroom.other_side_image_url = other_side_user_chatroomUser.image
+                each_chatroom.other_side_image_url = generate_presigned_url(request=request,file_name=other_side_user_chatroomUser.image) 
                 each_chatroom.other_side_name = other_side_user_chatroomUser.name
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom).count() > 0:
                     last_message = ChatroomMessage.objects.filter(chatroom=each_chatroom).order_by('-create_at').first()
@@ -378,7 +413,7 @@ class MessageViewSet(APIView):
                 other_side_user_chatroomUser = ChatroomUserShip.objects.filter(chatroom=each_chatroom).filter(~Q(user=other_side_user)).first().user
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count() != 0:
                     each_chatroom.unread_nums = ChatroomMessage.objects.filter(chatroom=each_chatroom,sender=other_side_user_chatroomUser,is_read_by_other_side=False).count()
-                each_chatroom.other_side_image_url = other_side_user_chatroomUser.image
+                each_chatroom.other_side_image_url = generate_presigned_url(request=request,file_name=other_side_user_chatroomUser.image) 
                 each_chatroom.other_side_name = other_side_user_chatroomUser.name
                 if ChatroomMessage.objects.filter(chatroom=each_chatroom).count() > 0:
                     last_message = ChatroomMessage.objects.filter(chatroom=each_chatroom).order_by('-create_at').first()

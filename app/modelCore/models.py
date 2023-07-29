@@ -245,7 +245,15 @@ class UserImage(models.Model):
     def save(self,*args, **kwargs):
         super(UserImage, self).save(*args, **kwargs)
         user = self.user
-        user.image = UserImage.objects.filter(user=user).first().image.url
+        user.image = UserImage.objects.filter(user=user).first().image
+        print('imageUrl',user.image)
+        user.save() 
+
+    def delete(self,*args, **kwargs):
+        super(UserImage, self).delete(*args, **kwargs)
+        user = self.user
+        user.image = UserImage.objects.filter(user=user).first().image
+        print('imageUrl',user.image)
         user.save() 
 
 class Interest(models.Model):

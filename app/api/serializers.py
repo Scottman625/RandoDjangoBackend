@@ -4,7 +4,8 @@ from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,M
 
 class UserSerializer(serializers.ModelSerializer):
     age = serializers.IntegerField(default=None)
-    image = serializers.CharField(default='')
+    other_side_image_url = serializers.CharField(default='')
+    imageUrl = serializers.CharField(default='')
     class Meta:
         model = User
         fields = '__all__'
@@ -41,6 +42,7 @@ class MessageSerializer(serializers.ModelSerializer):
     other_side_image_url = serializers.CharField(default='')
     other_side_phone = serializers.CharField(default='')
     should_show_time = serializers.BooleanField(read_only=True,default=True)
+    imageUrl = serializers.CharField(default='')
 
     class Meta:
         model = ChatroomMessage
