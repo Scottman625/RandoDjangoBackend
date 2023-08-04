@@ -53,7 +53,7 @@ INSTALLED_APPS = [
     'modelCore',
     'api',
     'user',
-    'messageApp',
+    # 'messageApp',
     'chat',
 ]
 

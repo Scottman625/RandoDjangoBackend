@@ -21,7 +21,6 @@ from asgiref.sync import async_to_sync
 
 from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match
 from api import serializers
-from messageApp.tasks import *
 from chat.chat_services import get_unread_chatroom_message_count, get_chatroom_list
 
 
