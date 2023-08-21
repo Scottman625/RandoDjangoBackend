@@ -96,59 +96,32 @@ def importUser():
 
     # user.save()
 
-    user = User()
-    user.name = 'Hong01'
-    user.phone = '0915323132'
-    user.gender = 'M'
-    user.search_gender = 'F'
-    user.imageUrl = 'assets/images/Kinu.png'
+    for i in range(200):
+        
+        string = str(i)
+        phone = '0910000000'
+        phone = phone[:-len(string)] + string
+        user = User.objects.get(phone=phone)
+        user.password = 'pbkdf2_sha256$600000$h93GvNtGm6nusQItvKPytL$CRqByyglo4xLbmhsUymjGY9MJOkLrdxNVMoudMyVLc4='
+        # user.name = 'Test'+ string
+        
+        # user.gender = 'M'
+        # user.search_gender = 'F'
+        user.image = 'https://rando-app-bucket.s3.amazonaws.com/images/c04afd2c-29ca-11ee-b6a4-767e3dc7197d.jpg?AWSAccessKeyId=AKIA4N73ISGH4N5BIHUI&Signature=fglP6262wF61CuB6rcaPba3w6Gc%3D&Expires=1690169729'
 
-    user.save()
+        user.save()
 
-    user = User()
-    user.name = 'Fang01'
-    user.phone = '0900000011'
-    user.gender = 'M'
-    user.search_gender = 'F'
-    user.imageUrl = 'assets/images/Kinu.png'
+    for i in range(200,400):
+        string = str(i)
+        phone = '0910000000'
+        phone = phone[:-len(string)] + string
+        user = User.objects.get(phone=phone)
+        user.password = 'pbkdf2_sha256$600000$h93GvNtGm6nusQItvKPytL$CRqByyglo4xLbmhsUymjGY9MJOkLrdxNVMoudMyVLc4='
+        # user.gender = 'F'
+        # user.search_gender = 'M'
+        # user.image = 'https://rando-app-bucket.s3.amazonaws.com/images/53931d0a-269a-11ee-a7ec-767e3dc7197d.jpeg?AWSAccessKeyId=AKIA4N73ISGH4N5BIHUI&Signature=V0FqP7Fe685JzB8Ffh5kmf59sKI%3D&Expires=1689821590'
 
-    user.save()
-
-    user = User()
-    user.name = 'Hex01'
-    user.phone = '0900000012'
-    user.gender = 'M'
-    user.search_gender = 'F'
-    user.imageUrl = 'assets/images/Kinu.png'
-
-    user.save()
-
-    user = User()
-    user.name = 'Hsin01'
-    user.phone = '0900000013'
-    user.gender = 'M'
-    user.search_gender = 'F'
-    user.imageUrl = 'assets/images/Kinu.png'
-
-    user.save()
-
-    user = User()
-    user.name = 'Ken01'
-    user.phone = '0900000014'
-    user.gender = 'M'
-    user.search_gender = 'F'
-    user.imageUrl = 'assets/images/Kinu.png'
-
-    user.save()
-
-    user = User()
-    user.name = 'Blake01'
-    user.phone = '0900000015'
-    user.gender = 'M'
-    user.search_gender = 'F'
-    user.imageUrl = 'assets/images/Kinu.png'
-
-    user.save()
+        user.save()
 
 # test user id : 1 && 3
 def importUserLike():

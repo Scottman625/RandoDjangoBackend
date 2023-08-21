@@ -19,7 +19,7 @@ from botocore.exceptions import NoCredentialsError
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
-from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match
+from modelCore.models import User, ChatRoom, ChatroomMessage, ChatroomUserShip,Match, UserLike
 from api import serializers
 from chat.chat_services import get_unread_chatroom_message_count, get_chatroom_list
 
@@ -53,6 +53,47 @@ def generate_presigned_url(request,file_name):
     # print(response)
     # 返回生成的预签名URL
     return response
+
+class UserPickedView(APIView):
+
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, format=None):
+        current_user = self.request.user
+        #先找出已經評價配對後的用戶ID列表，再篩選掉此列表中的用戶
+        pickedUsersIdList = UserLike.objects.filter(user=current_user,is_like__isnull=False).values_list('liked_user',flat=True).distinct()
+        notPickedYetUsers = User.objects.filter(~Q(id=current_user.id)&~Q(gender=current_user.gender)&~Q(id__in=pickedUsersIdList))
+        print(notPickedYetUsers)
+
+        for i in range(len(notPickedYetUsers)):
+
+            notPickedYetUsers[i].image = generate_presigned_url(request=request,file_name=notPickedYetUsers[i].image)
+            notPickedYetUsers[i].phone = notPickedYetUsers[i].phone
+            notPickedYetUsers[i].age = notPickedYetUsers[i].age()
+
+        serializer = serializers.UserSerializer(notPickedYetUsers, many=True)
+        
+        # 返回序列化后的数据
+        return Response(serializer.data)
+    
+    def post(self, request, format=None):
+        user = self.request.user
+        liked_user_id = request.data.get('liked_user_id')
+        other_side_user = User.objects.get(id=liked_user_id)
+        is_like = request.data.get('is_like')
+        if is_like != None or is_like != '':
+            if is_like == 'True' or is_like == 'true' or is_like == True:
+                is_like = True
+            else:
+                is_like = False
+        if UserLike.objects.filter(user=user,liked_user=other_side_user,is_like=is_like).count() == 0:
+            UserLike.objects.create(user=user,liked_user=other_side_user,is_like=is_like)
+
+        if Match.objects.filter(Q(user1=user,user2=other_side_user)|Q(user1=other_side_user,user2=user)).count() != 0:
+            return Response({'result': "is matched"})
+        else:
+            return Response({'result': "not matched yet"})
 
 class MatchedNotChattedUsersView(APIView):
 

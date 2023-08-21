@@ -166,12 +166,14 @@ class UserLike(models.Model):
         on_delete=models.CASCADE,
     )
 
+    is_like = models.BooleanField(null=True,blank=True)
+
     def save(self, *args, **kwargs):
         # Call the original save method to save the UserLike instance
         super(UserLike, self).save(*args, **kwargs)
         
         # Check if a matching UserLike exists
-        if UserLike.objects.filter(user=self.liked_user, liked_user=self.user).exists():
+        if UserLike.objects.filter(user=self.liked_user, liked_user=self.user,is_like=True).exists():
             # If it does, create a new Match instance
             if Match.objects.filter(user1=self.user, user2=self.liked_user).count() == 0:
                 Match.objects.create(user1=self.user, user2=self.liked_user)

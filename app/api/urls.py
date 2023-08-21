@@ -15,6 +15,7 @@ urlpatterns = [
     path('matched_not_chatted/', views.MatchedNotChattedUsersView.as_view(), name='matched_not_chatted'),
     path('messages', views.MessageViewSet.as_view()),
     path('refresh_chatMessages', views.RefreshChatMessageViewSet.as_view()),
+    path('user_picked', views.UserPickedView.as_view()),
 
 
 ]
