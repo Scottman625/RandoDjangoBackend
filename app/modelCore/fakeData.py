@@ -117,6 +117,7 @@ def importUser():
         phone = phone[:-len(string)] + string
         user = User.objects.get(phone=phone)
         user.password = 'pbkdf2_sha256$600000$h93GvNtGm6nusQItvKPytL$CRqByyglo4xLbmhsUymjGY9MJOkLrdxNVMoudMyVLc4='
+        
         # user.gender = 'F'
         # user.search_gender = 'M'
         # user.image = 'https://rando-app-bucket.s3.amazonaws.com/images/53931d0a-269a-11ee-a7ec-767e3dc7197d.jpeg?AWSAccessKeyId=AKIA4N73ISGH4N5BIHUI&Signature=V0FqP7Fe685JzB8Ffh5kmf59sKI%3D&Expires=1689821590'
@@ -126,126 +127,16 @@ def importUser():
 # test user id : 1 && 3
 def importUserLike():
     
+    for i in range(200,400):
+        userlike = UserLike()
+        string = str(i)
+        phone = '0910000000'
+        phone = phone[:-len(string)] + string
+        userlike.user = User.objects.get(phone=phone)
+        userlike.liked_user = User.objects.get(id=1)
+        userlike.is_like = True
+        userlike.save()
 
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=3)
-    # userlike.liked_user = User.objects.get(id=10)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=3)
-    # userlike.liked_user = User.objects.get(id=11)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=3)
-    # userlike.liked_user = User.objects.get(id=12)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=10)
-    # userlike.liked_user = User.objects.get(id=3)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=10)
-    # userlike.liked_user = User.objects.get(id=4)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=10)
-    # userlike.liked_user = User.objects.get(id=5)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=4)
-    # userlike.liked_user = User.objects.get(id=10)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=4)
-    # userlike.liked_user = User.objects.get(id=13)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=4)
-    # userlike.liked_user = User.objects.get(id=15)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=13)
-    # userlike.liked_user = User.objects.get(id=5)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=13)
-    # userlike.liked_user = User.objects.get(id=7)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=5)
-    # userlike.liked_user = User.objects.get(id=13)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=5)
-    # userlike.liked_user = User.objects.get(id=15)
-    # userlike.save()
-
-    # userlike = UserLike()
-    # userlike.user = User.objects.get(id=15)
-    # userlike.liked_user = User.objects.get(id=4)
-    # userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=3)
-    userlike.liked_user = User.objects.get(id=16)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=3)
-    userlike.liked_user = User.objects.get(id=17)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=3)
-    userlike.liked_user = User.objects.get(id=18)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=3)
-    userlike.liked_user = User.objects.get(id=19)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=3)
-    userlike.liked_user = User.objects.get(id=20)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=16)
-    userlike.liked_user = User.objects.get(id=3)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=17)
-    userlike.liked_user = User.objects.get(id=3)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=18)
-    userlike.liked_user = User.objects.get(id=3)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=19)
-    userlike.liked_user = User.objects.get(id=3)
-    userlike.save()
-
-    userlike = UserLike()
-    userlike.user = User.objects.get(id=20)
-    userlike.liked_user = User.objects.get(id=3)
-    userlike.save()
 
 def importchatRoom():
 

@@ -320,8 +320,118 @@ class ChatRoomViewSet(viewsets.GenericViewSet,
             response_data = serializer.data
 
             return Response(response_data)
+    
+    def delete(self, request, *args, **kwargs):
+        user = self.request.user
+        other_side_user_phone = request.data.get('other_side_user_phone')
+        other_side_user = User.objects.get(phone=other_side_user_phone)
+        print('other_side_user_id: ',other_side_user.id,'other_side_user_phone: ',other_side_user_phone)
+        chatrooms_for_user1 = ChatroomUserShip.objects.filter(user=user).values_list('chatroom', flat=True)
+
+        # 使用上一步的結果，找出user2也參與且是user1參與的chatroom
+        common_chatrooms = ChatroomUserShip.objects.filter(user=other_side_user, chatroom__in=chatrooms_for_user1)
+
+        # 如果需要得到待刪除的ChatRoom的實例列表
+        chatroom_instance = [ship.chatroom for ship in common_chatrooms][0]
+        chatroom_instance.delete()
+
+        match = Match.objects.filter(Q(user1=user,user2=other_side_user)|Q(user1=other_side_user,user2=user)).first()
+        match.delete()
+
+        queryset = get_chatroom_list(user=user)
+
+        if self.request.query_params.get('is_chat') == 'no':
+            pass
+        else:
+            queryset = queryset.annotate(msg_count=Count('chatroom_messages')).filter(msg_count__gt=0)
 
 
+        for i in range(len(queryset)):
+            
+            other_side_chatRoom_user = ChatroomUserShip.objects.filter(chatroom=queryset[i]).filter(~Q(user=self.request.user)).first().user
+            print('other_side_chatRoom_user: ',other_side_chatRoom_user)
+            if ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_chatRoom_user,is_read_by_other_side=False).count() != 0:
+                queryset[i].unread_nums = ChatroomMessage.objects.filter(chatroom=queryset[i],sender=other_side_chatRoom_user,is_read_by_other_side=False).count()
+            queryset[i].other_side_image_url = generate_presigned_url(request=self.request,file_name=other_side_chatRoom_user.image)
+            queryset[i].other_side_name = other_side_chatRoom_user.name
+            queryset[i].other_side_age = other_side_chatRoom_user.age
+            queryset[i].other_side_career = other_side_chatRoom_user.career
+            queryset[i].other_side_chatRoom_user = other_side_chatRoom_user
+            queryset[i].current_user = user
+            queryset[i].current_user_id = user.id
+            queryset[i].current_user.imageUrl = generate_presigned_url(request=self.request,file_name=user.image)
+
+            if ChatroomMessage.objects.filter(chatroom=queryset[i]).count() > 0:
+                last_message = ChatroomMessage.objects.filter(chatroom=queryset[i]).order_by('-id').first()
+                if (last_message.content != '') and (last_message.content != None) :
+                    queryset[i].last_message = last_message.content[0:15]
+                elif (last_message.image != '' ) and (last_message.image != None):
+                    queryset[i].last_message = '已傳送圖片'
+                else:
+                    queryset[i].last_message = ''
+            
+                chat_rooms_not_read_messages = ChatroomMessage.objects.filter(chatroom=queryset[i],is_read_by_other_side=False).filter(~Q(sender=user))
+                queryset[i].unread_nums = chat_rooms_not_read_messages.count()
+                queryset[i].last_message_time = queryset[i].last_update_at
+
+
+        serializer = serializers.ChatRoomSerializer(queryset, many=True)
+
+        room_group_name = f"chatRoomMessages_{str(user.id)}"
+        async_to_sync(channel_layer.group_send)(
+            room_group_name,  # 這裡需要替換成你的 group 名稱
+            {
+                'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
+                'chatrooms': serializer.data,
+                'messages': [],
+            }
+        )
+        print(serializer.data)
+       
+        other_side_chatrooms = get_chatroom_list(user=other_side_user)
+
+        other_side_chatrooms = other_side_chatrooms.annotate(msg_count=Count('chatroom_messages')).filter(msg_count__gt=0)
+
+        for i in range(len(other_side_chatrooms)):
+            
+            other_side_chatroom_user = ChatroomUserShip.objects.filter(chatroom=other_side_chatrooms[i]).filter(~Q(user=other_side_user)).first().user
+            if ChatroomMessage.objects.filter(chatroom=other_side_chatrooms[i],sender=other_side_user,is_read_by_other_side=False).count() != 0:
+                other_side_chatrooms[i].unread_nums = ChatroomMessage.objects.filter(chatroom=other_side_chatrooms[i],sender=other_side_chatroom_user,is_read_by_other_side=False).count()
+            other_side_chatrooms[i].other_side_image_url = generate_presigned_url(request=self.request,file_name=other_side_chatroom_user.image)
+            other_side_chatrooms[i].other_side_name = other_side_chatroom_user.name
+            other_side_chatrooms[i].other_side_age = other_side_chatroom_user.age
+            other_side_chatrooms[i].other_side_career = other_side_chatroom_user.career
+            other_side_chatrooms[i].other_side_user = other_side_chatroom_user
+            other_side_chatrooms[i].current_user = other_side_user
+            other_side_chatrooms[i].current_user_id = other_side_user.id
+            other_side_chatrooms[i].current_user.imageUrl = generate_presigned_url(request=self.request,file_name=other_side_user.image)
+
+            if ChatroomMessage.objects.filter(chatroom=other_side_chatrooms[i]).count() > 0:
+                last_message = ChatroomMessage.objects.filter(chatroom=other_side_chatrooms[i]).order_by('-id').first()
+                if (last_message.content != '') and (last_message.content != None) :
+                    other_side_chatrooms[i].last_message = last_message.content[0:15]
+                elif (last_message.image != '' ) and (last_message.image != None):
+                    other_side_chatrooms[i].last_message = '已傳送圖片'
+                else:
+                    other_side_chatrooms[i].last_message = ''
+            
+                chat_rooms_not_read_messages = ChatroomMessage.objects.filter(chatroom=other_side_chatrooms[i],is_read_by_other_side=False).filter(~Q(sender=user))
+                other_side_chatrooms[i].unread_nums = chat_rooms_not_read_messages.count()
+                other_side_chatrooms[i].last_message_time = other_side_chatrooms[i].last_update_at
+
+        print('other_side_user_id: ',other_side_user.id)
+        other_side_serializer = serializers.ChatRoomSerializer(other_side_chatrooms,many=True)
+        other_side_room_group_name = f"chatRoomMessages_{str(other_side_user.id)}"
+        async_to_sync(channel_layer.group_send)(
+            other_side_room_group_name,  # 這裡需要替換成你的 group 名稱
+            {
+                'type': 'chatrooms',  # 這裡需要替換成你在 consumer 中定義的方法名稱
+                'chatrooms': other_side_serializer.data,
+                'messages': [],
+            }
+        )
+
+        return Response(serializer.data)
 class MessageViewSet(APIView):
     # queryset = Message.objects.all()
     # serializer_class = serializers.MessageSerializer

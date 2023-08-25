@@ -7,8 +7,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # importCityCounty()
         # seedData()
-        importUser()
-        # importUserLike()
+        # importUser()
+        importUserLike()
         # importchatRoom()
         # importMessage()
         # importCareer()
