@@ -173,7 +173,7 @@ class UserLike(models.Model):
         super(UserLike, self).save(*args, **kwargs)
         
         # Check if a matching UserLike exists
-        if UserLike.objects.filter(user=self.liked_user, liked_user=self.user,is_like=True).exists():
+        if UserLike.objects.filter(user=self.liked_user, liked_user=self.user,is_like=True).exists() and self.is_like == True:
             # If it does, create a new Match instance
             if Match.objects.filter(user1=self.user, user2=self.liked_user).count() == 0:
                 Match.objects.create(user1=self.user, user2=self.liked_user)

@@ -144,6 +144,16 @@ class UpdateUserImage(APIView):
     authentication_classes = (authentication.TokenAuthentication,)
     permission_classes = (permissions.IsAuthenticated,)
 
+    def post(self, request, format=None):
+        user = self.request.user
+        image = request.FILES.get('image')
+        UserImage.objects.create(user=user,image=image)
+        userImages = UserImage.objects.filter(user=user)
+        for userImage in userImages:
+            userImage.imageUrl = generate_presigned_url(request=self.request,file_name=userImage.image.name)
+        user.userImages = userImages
+        serializer = GetUserSerializer(user)
+        return Response(serializer.data)
 
     def put(self, request, format=None):
         user = self.request.user

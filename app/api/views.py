@@ -81,6 +81,7 @@ class UserPickedView(APIView):
         user = self.request.user
         liked_user_id = request.data.get('liked_user_id')
         other_side_user = User.objects.get(id=liked_user_id)
+        print(other_side_user.phone)
         is_like = request.data.get('is_like')
         if is_like != None or is_like != '':
             if is_like == 'True' or is_like == 'true' or is_like == True:
@@ -115,7 +116,7 @@ class MatchedNotChattedUsersView(APIView):
         print(queryset)
         for i in range(len(queryset)):
 
-            queryset[i].other_side_image_url = generate_presigned_url(request=request,file_name=queryset[i].image)
+            queryset[i].image = generate_presigned_url(request=request,file_name=queryset[i].image)
             queryset[i].other_side_phone = queryset[i].phone
             queryset[i].age = queryset[i].age()
             # queryset[i].imageUrl = generate_presigned_url(request=request,file_name=current_user.image)
